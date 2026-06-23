@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SD Imputation Calculator — Cochrane §6.5.2.8</title>
+<style>
+  :root {
+    --ink: #2A2622;
+    --ink-soft: #5B564E;
+    --page: #FAF8F4;
+    --panel: #FFFFFF;
+    --navy: #1B2A4A;
+    --teal: #3D6B7D;
+    --amber: #C97B3D;
+    --amber-bg: #FBF1E7;
+    --line: #E3DDD1;
+    --line-soft: #EDE8DC;
+    --warn-bg: #FBEAE2;
+    --warn-border: #E8C3AE;
+    --warn-text: #8A3B1E;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .app {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 18px 60px;
+  }
+
+  /* ---------- header ---------- */
+  header { margin-bottom: 22px; }
+  .eyebrow {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-family: Georgia, "Palatino Linotype", "Iowan Old Style", serif;
+    font-size: 26px;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+  }
+  .sub {
+    font-size: 14.5px;
+    color: var(--ink-soft);
+    margin: 0;
+    max-width: 560px;
+  }
+
+  /* ---------- step 1: picker ---------- */
+  .picker {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  .picker-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 12px;
+    display: block;
+  }
+  .picker-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  @media (max-width: 480px) {
+    .picker-grid { grid-template-columns: 1fr; }
+  }
+  .picker-option {
+    text-align: left;
+    border: 1px solid var(--line);
+    background: var(--page);
+    border-radius: 9px;
+    padding: 12px 14px;
+    cursor: pointer;
+    font-family: inherit;
+    color: var(--ink);
+    transition: border-color 120ms ease, background 120ms ease;
+  }
+  .picker-option:hover { border-color: var(--teal); }
+  .picker-option.active {
+    border-color: var(--teal);
+    background: #EAF1F3;
+  }
+  .picker-option .ot {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: var(--navy);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .picker-option .od {
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- working panel ---------- */
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 22px;
+    display: none;
+  }
+  .panel.active { display: block; }
+
+  .panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--teal);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .panel-formula {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 14px;
+    color: var(--navy);
+    background: var(--line-soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 10px 0 14px;
+    line-height: 1.7;
+  }
+  .panel-note {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 0 0 16px 0;
+  }
+
+  .field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+  .field .hint { font-weight: 400; color: var(--ink-soft); font-size: 11px; }
+  .field input, .field select {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 15px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--page);
+    color: var(--ink);
+    width: 100%;
+  }
+  .field input:focus-visible, .field select:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 1px;
+    border-color: var(--teal);
+  }
+
+  .seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    border: 1px solid var(--line);
+  }
+  .seg button {
+    font-family: inherit;
+    font-size: 12.5px;
+    padding: 7px 12px;
+    background: var(--panel);
+    border: none;
+    border-right: 1px solid var(--line);
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--teal); color: #fff; }
+
+  .worked {
+    background: var(--line-soft);
+    border-left: 3px solid var(--teal);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .worked.show { display: block; }
+  .worked-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--teal);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .worked-line {
+    font-family: ui-monospace, monospace;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.7;
+    word-break: break-word;
+  }
+
+  .results {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .result-card {
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    padding: 14px 16px;
+    background: var(--page);
+  }
+  .result-card.hi { border-color: var(--amber); background: var(--amber-bg); }
+  .result-card .rl { font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
+  .result-card .rv {
+    font-family: ui-monospace, monospace;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--navy);
+  }
+  .result-card.hi .rv { color: var(--amber); }
+
+  .warning {
+    font-size: 13px;
+    color: var(--warn-text);
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    border-radius: 7px;
+    padding: 10px 13px;
+    margin-top: 10px;
+    display: none;
+  }
+  .warning.show { display: block; }
+
+  .non-cochrane-badge {
+    display: inline-block;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6B4A1E;
+    background: #FBE9D0;
+    border: 1px solid #E3C794;
+    border-radius: 5px;
+    padding: 3px 8px;
+    margin-bottom: 10px;
+  }
+
+  footer {
+    margin-top: 22px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--line);
+    padding-top: 14px;
+  }
+
+  .empty-hint {
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    padding: 30px 10px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="eyebrow">Cochrane Handbook · §6.5.2.8</div>
+    <h1>SD Imputation Calculator</h1>
+    <p class="sub">Tell the calculator what data you have from the trial report. It picks the right Cochrane formula and shows the working.</p>
+  </header>
+
+  <div class="picker">
+    <span class="picker-label">What does the paper report?</span>
+    <div class="picker-grid" id="pickerGrid">
+      <button class="picker-option" data-target="panel-md">
+        <span class="ot">A t-stat, P-value, or CI for a mean DIFFERENCE</span>
+        <span class="od">Comparing two groups (MD) → within-group SD</span>
+      </button>
+      <button class="picker-option" data-target="panel-ci">
+        <span class="ot">A 95% CI around a mean</span>
+        <span class="od">Upper and lower limit, for one group</span>
+      </button>
+      <button class="picker-option" data-target="panel-se">
+        <span class="ot">A standard error (SE)</span>
+        <span class="od">Convert SE ↔ SD using n</span>
+      </button>
+      <button class="picker-option" data-target="panel-corr">
+        <span class="ot">Baseline, final, AND change SDs</span>
+        <span class="od">Back-calculate the correlation coefficient</span>
+      </button>
+      <button class="picker-option" data-target="panel-sdchange">
+        <span class="ot">Baseline + final SD, missing change SD</span>
+        <span class="od">Impute SD of change using a correlation</span>
+      </button>
+      <button class="picker-option" data-target="panel-onesample">
+        <span class="ot">A t-stat or P-value for ONE group</span>
+        <span class="od">e.g. one-sample t-test vs. zero — not in Cochrane Handbook</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="emptyHint" class="empty-hint">Pick an option above to get started.</div>
+
+  <!-- PANEL: CI -->
+  <div class="panel" id="panel-ci">
+    <div class="panel-title">95% CI → SD / SE &nbsp;·&nbsp; Cochrane §6.5.2.2</div>
+    <div class="panel-formula">
+      SE = (upper limit − lower limit) ÷ divisor<br>
+      SD = √n × SE
+    </div>
+    <p class="panel-note">For a CI around a single group's mean — not the difference between two groups. If n is small, the paper should have used a t‑distribution rather than the normal approximation; this calculator handles that automatically.</p>
+
+    <div class="seg" id="ciLevelSeg">
+      <button class="active" data-level="95">95% CI</button>
+      <button data-level="90">90% CI</button>
+      <button data-level="99">99% CI</button>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label id="ciUpperLabel">Upper limit (95% CI)</label>
+        <input type="number" step="any" id="ciUpper" value="23.7">
+      </div>
+      <div class="field">
+        <label id="ciLowerLabel">Lower limit (95% CI)</label>
+        <input type="number" step="any" id="ciLower" value="10.9">
+      </div>
+      <div class="field">
+        <label>n <span class="hint">sample size, this group</span></label>
+        <input type="number" step="any" id="ciN" value="25">
+      </div>
+    </div>
+
+    <div class="seg" id="ciDistSeg">
+      <button class="active" data-mode="auto">Auto (Cochrane rule)</button>
+      <button data-mode="normal">Force normal</button>
+      <button data-mode="t">Force t‑distribution</button>
+    </div>
+
+    <div class="worked" id="ciWorked">
+      <div class="worked-title" id="ciWorkedTitle"></div>
+      <div class="worked-line" id="ciWorkedLine1"></div>
+      <div class="worked-line" id="ciWorkedLine2"></div>
+    </div>
+
+    <div class="results">
+      <div class="result-card"><div class="rl">SE</div><div class="rv" id="ciSEOut">—</div></div>
+      <div class="result-card hi"><div class="rl">SD</div><div class="rv" id="ciSDOut">—</div></div>
+    </div>
+
+    <div class="warning" id="ciWarnGrey">n is in the 60–100 grey zone — Cochrane says check the original paper for which distribution was used. Currently using normal (3.92); switch to "Force t‑distribution" if the paper used one.</div>
+    <div class="warning" id="ciWarnNoN">Enter n to also compute SD — without it only SE can be derived.</div>
+  </div>
+
+  <!-- PANEL: SE -->
+  <div class="panel" id="panel-se">
+    <div class="panel-title">SE ↔ SD &nbsp;·&nbsp; Cochrane §6.5.2.2</div>
+    <div class="panel-formula">SD = SE × √n &nbsp;&nbsp;|&nbsp;&nbsp; SE = SD ÷ √n</div>
+    <p class="panel-note">The standard relationship between standard error and standard deviation for a sample of size n.</p>
+
+    <div class="seg" id="seModeSeg">
+      <button class="active" data-mode="seToSd">SE → SD</button>
+      <button data-mode="sdToSe">SD → SE</button>
+    </div>
+
+    <div class="field-row">
+      <div class="field" id="seInputWrap">
+        <label>SE <span class="hint">standard error</span></label>
+        <input type="number" step="any" id="seInput" value="3.61">
+      </div>
+      <div class="field" id="sdInputWrap" style="display:none">
+        <label>SD <span class="hint">standard deviation</span></label>
+        <input type="number" step="any" id="sdInput" value="19.8">
+      </div>
+      <div class="field">
+        <label>n <span class="hint">sample size</span></label>
+        <input type="number" step="any" id="seN" value="30">
+      </div>
+    </div>
+
+    <div class="results">
+      <div class="result-card hi"><div class="rl" id="seOutLabel">Imputed SD</div><div class="rv" id="seOut">—</div></div>
+    </div>
+  </div>
+
+  <!-- PANEL: CORR -->
+  <div class="panel" id="panel-corr">
+    <div class="panel-title">Correlation coefficient &nbsp;·&nbsp; Cochrane §6.5.2.8 (1)</div>
+    <div class="panel-formula">
+      corr = (SD<sub>baseline</sub>² + SD<sub>final</sub>² − SD<sub>change</sub>²) ÷ (2 × SD<sub>baseline</sub> × SD<sub>final</sub>)
+    </div>
+    <p class="panel-note">Use this when a similar, well-reported study gives baseline, final, AND change SDs. Back-calculate the implied correlation, then reuse it on a trial that's missing its change SD.</p>
+
+    <div class="field-row">
+      <div class="field"><label>SD baseline</label><input type="number" step="any" id="corrSdB" value="15.5"></div>
+      <div class="field"><label>SD final</label><input type="number" step="any" id="corrSdF" value="13.9"></div>
+      <div class="field"><label>SD change</label><input type="number" step="any" id="corrSdC" value="15.6"></div>
+    </div>
+
+    <div class="worked" id="corrWorked">
+      <div class="worked-title">Substituted</div>
+      <div class="worked-line" id="corrWorkedLine"></div>
+    </div>
+
+    <div class="results">
+      <div class="result-card hi"><div class="rl">Imputed correlation (corr)</div><div class="rv" id="corrOut">—</div></div>
+    </div>
+    <div class="warning" id="corrWarnRange">This value falls outside [−1, 1] — check the three SD inputs, since this usually means one was misread or the trio is inconsistent.</div>
+  </div>
+
+  <!-- PANEL: SD CHANGE -->
+  <div class="panel" id="panel-sdchange">
+    <div class="panel-title">SD of change &nbsp;·&nbsp; Cochrane §6.5.2.8 (2)</div>
+    <div class="panel-formula">
+      SD<sub>change</sub> = √(SD<sub>baseline</sub>² + SD<sub>final</sub>² − 2 × corr × SD<sub>baseline</sub> × SD<sub>final</sub>)
+    </div>
+    <p class="panel-note">Use an imputed correlation — from the panel above, from another study, or a sensitivity value like 0.5 — to construct the missing SD of change.</p>
+
+    <div class="field-row">
+      <div class="field"><label>SD baseline</label><input type="number" step="any" id="schSdB" value="15.5"></div>
+      <div class="field"><label>SD final</label><input type="number" step="any" id="schSdF" value="13.9"></div>
+      <div class="field"><label>corr <span class="hint">imputed correlation</span></label><input type="number" step="any" id="schCorr" value="0.5"></div>
+    </div>
+
+    <div class="worked" id="schWorked">
+      <div class="worked-title">Substituted</div>
+      <div class="worked-line" id="schWorkedLine"></div>
+    </div>
+
+    <div class="results">
+      <div class="result-card hi"><div class="rl">SD of change</div><div class="rv" id="schOut">—</div></div>
+    </div>
+    <div class="warning" id="schWarnNeg">The term under the square root is negative with these inputs — the correlation is too high for these two SDs. Try a lower |corr|.</div>
+  </div>
+
+  <!-- PANEL: MD (t-stat / P-value / CI for difference in means) -->
+  <div class="panel" id="panel-md">
+    <div class="panel-title">t-stat / P-value / CI for MD → SD &nbsp;·&nbsp; Cochrane §6.5.2.3</div>
+    <div class="panel-formula">
+      SE = |MD| ÷ t &nbsp;&nbsp;|&nbsp;&nbsp; SE = (upper − lower) ÷ divisor<br>
+      SD = SE × √(NE × NC ÷ (NE + NC))
+    </div>
+    <p class="panel-note">For the difference between two group means (not a single group's CI). Assumes equal SD in both groups — the result is one SD, entered for both arms. df = NE + NC − 2.</p>
+
+    <div class="seg" id="mdModeSeg">
+      <button class="active" data-mode="p">From P‑value</button>
+      <button data-mode="t">From t‑statistic</button>
+      <button data-mode="ci">From CI</button>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>MD <span class="hint">mean difference</span></label><input type="number" step="any" id="mdMD" value="3.8"></div>
+      <div class="field" id="mdPWrap"><label>P value <span class="hint">two‑sided, from t‑test</span></label><input type="number" step="any" id="mdP" value="0.008"></div>
+      <div class="field" id="mdTWrap" style="display:none"><label>t statistic</label><input type="number" step="any" id="mdT" value="2.78"></div>
+    </div>
+
+    <div class="field-row" id="mdCIWrap" style="display:none">
+      <div class="field"><label>Upper limit of CI for MD</label><input type="number" step="any" id="mdCIUpper" value="6.6"></div>
+      <div class="field"><label>Lower limit of CI for MD</label><input type="number" step="any" id="mdCILower" value="1.0"></div>
+    </div>
+    <div class="seg" id="mdCILevelSeg" style="display:none">
+      <button class="active" data-level="95">95% CI</button>
+      <button data-level="90">90% CI</button>
+      <button data-level="99">99% CI</button>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>NE <span class="hint">n, experimental group</span></label><input type="number" step="any" id="mdNE" value="25"></div>
+      <div class="field"><label>NC <span class="hint">n, comparator group</span></label><input type="number" step="any" id="mdNC" value="22"></div>
+    </div>
+
+    <div class="worked" id="mdWorked">
+      <div class="worked-title" id="mdWorkedTitle">Substituted</div>
+      <div class="worked-line" id="mdWorkedLine1"></div>
+      <div class="worked-line" id="mdWorkedLine2"></div>
+      <div class="worked-line" id="mdWorkedLine3"></div>
+    </div>
+
+    <div class="results">
+      <div class="result-card"><div class="rl">t statistic</div><div class="rv" id="mdTOut">—</div></div>
+      <div class="result-card"><div class="rl">SE of MD</div><div class="rv" id="mdSEOut">—</div></div>
+      <div class="result-card hi"><div class="rl">SD <span style="font-size:11px;font-weight:400;color:var(--ink-soft)">(use for both groups)</span></div><div class="rv" id="mdSDOut">—</div></div>
+    </div>
+    <div class="warning" id="mdWarnSmallSample">df &lt; 60 here — make sure the original CI was actually built from a t‑distribution if you're entering a CI directly (this panel already uses the correct t for P‑value/t‑statistic modes).</div>
+  </div>
+
+  <!-- PANEL: One-sample t-stat / P-value (NOT in Cochrane Handbook) -->
+  <div class="panel" id="panel-onesample">
+    <span class="non-cochrane-badge">Not in Cochrane Handbook — general statistics</span>
+    <div class="panel-title">One-sample t‑stat / P‑value → SD</div>
+    <div class="panel-formula">
+      t = mean ÷ SE &nbsp;&nbsp;→&nbsp;&nbsp; SE = |mean| ÷ t<br>
+      SD = SE × √n
+    </div>
+    <p class="panel-note">
+      Use this only when a paper reports a one-sample t-test result for a single group — for
+      example, testing whether the mean change from baseline differs from zero within one arm
+      (t or P from that test, plus the mean and n). This is the standard one-sample t-statistic
+      relationship, not a method from the Cochrane Handbook's imputation sections — if you cite
+      this in a manuscript, cite a general statistics reference, not Cochrane §6.5.
+      Degrees of freedom = n − 1.
+    </p>
+
+    <div class="seg" id="osModeSeg">
+      <button class="active" data-mode="p">From P‑value</button>
+      <button data-mode="t">From t‑statistic</button>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Mean <span class="hint">e.g. mean change from baseline</span></label><input type="number" step="any" id="osMean" value="2.5"></div>
+      <div class="field" id="osPWrap"><label>P value <span class="hint">two‑sided</span></label><input type="number" step="any" id="osP" value="0.004"></div>
+      <div class="field" id="osTWrap" style="display:none"><label>t statistic</label><input type="number" step="any" id="osT" value="3.1"></div>
+      <div class="field"><label>n <span class="hint">sample size, this group</span></label><input type="number" step="any" id="osN" value="20"></div>
+    </div>
+
+    <div class="worked" id="osWorked">
+      <div class="worked-title">Substituted</div>
+      <div class="worked-line" id="osWorkedLine1"></div>
+      <div class="worked-line" id="osWorkedLine2"></div>
+    </div>
+
+    <div class="results">
+      <div class="result-card"><div class="rl">t statistic</div><div class="rv" id="osTOut">—</div></div>
+      <div class="result-card"><div class="rl">SE</div><div class="rv" id="osSEOut">—</div></div>
+      <div class="result-card hi"><div class="rl">SD</div><div class="rv" id="osSDOut">—</div></div>
+    </div>
+    <div class="warning" id="osWarnMixup">
+      Double-check this is really a one-sample test (mean vs. zero) within a single group, not a
+      two-sample comparison between groups — those use the "mean DIFFERENCE" panel instead, which
+      has a different df and a different SD formula.
+    </div>
+  </div>
+
+  <footer>
+    Formulas follow the Cochrane Handbook for Systematic Reviews of Interventions, §6.5 (imputing standard deviations for changes from baseline) and standard CI/SE conversions. Always sense-check imputed values against the original trial report where possible.
+  </footer>
+
+</div>
+
+<script>
+// ===================== inverse t-distribution (verified against scipy.stats.t.ppf) =====================
+function erfInv(x) {
+  const a = 0.147;
+  const ln1mx2 = Math.log(1 - x * x);
+  const term1 = 2 / (Math.PI * a) + ln1mx2 / 2;
+  const term2 = ln1mx2 / a;
+  return Math.sign(x) * Math.sqrt(Math.sqrt(term1 * term1 - term2) - term1);
+}
+function gammln(x) {
+  const cof = [76.18009172947146, -86.50532032941677, 24.01409824083091,
+    -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+  let y = x, tmp = x + 5.5;
+  tmp -= (x + 0.5) * Math.log(tmp);
+  let ser = 1.000000000190015;
+  for (let j = 0; j < 6; j++) { y += 1; ser += cof[j] / y; }
+  return -tmp + Math.log((2.5066282746310005 * ser) / x);
+}
+function logBeta(a, b) { return gammln(a) + gammln(b) - gammln(a + b); }
+function betacf(x, a, b) {
+  const MAXIT = 200, EPS = 3e-12, FPMIN = 1e-300;
+  const qab = a + b, qap = a + 1, qam = a - 1;
+  let c = 1, d = 1 - (qab * x) / qap;
+  if (Math.abs(d) < FPMIN) d = FPMIN;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= MAXIT; m++) {
+    const m2 = 2 * m;
+    let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d; h *= d * c;
+    aa = (-(a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+    d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d;
+    const del = d * c; h *= del;
+    if (Math.abs(del - 1) < EPS) break;
+  }
+  return h;
+}
+function incompleteBeta(x, a, b) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const bt = Math.exp(-logBeta(a, b) + a * Math.log(x) + b * Math.log(1 - x));
+  if (x < (a + 1) / (a + b + 2)) return (bt * betacf(x, a, b)) / a;
+  return 1 - (bt * betacf(1 - x, b, a)) / b;
+}
+function studentTcdf(t, df) {
+  const x = df / (df + t * t);
+  const p = incompleteBeta(x, df / 2, 0.5);
+  return t > 0 ? 1 - p / 2 : p / 2;
+}
+function tInv(p, df) {
+  let lo = 0, hi = 1000;
+  for (let i = 0; i < 100; i++) {
+    const mid = (lo + hi) / 2;
+    if (studentTcdf(mid, df) > p) hi = mid; else lo = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+// ===================== formatting =====================
+function fmtN(n, d) {
+  d = d === undefined ? 4 : d;
+  if (n === null || n === undefined || Number.isNaN(n) || !Number.isFinite(n)) return "—";
+  return Number(n.toFixed(d)).toString();
+}
+function val(id) { return parseFloat(document.getElementById(id).value); }
+
+// ===================== picker =====================
+const pickerButtons = document.querySelectorAll(".picker-option");
+const panels = document.querySelectorAll(".panel");
+const emptyHint = document.getElementById("emptyHint");
+
+pickerButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    pickerButtons.forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    panels.forEach((p) => p.classList.remove("active"));
+    document.getElementById(btn.dataset.target).classList.add("active");
+    emptyHint.style.display = "none";
+  });
+});
+
+// ===================== CI panel =====================
+const CI_LEVELS = { "95": { divisor: 3.92, alpha: 0.975 }, "90": { divisor: 3.29, alpha: 0.95 }, "99": { divisor: 5.15, alpha: 0.995 } };
+let ciLevel = "95";
+let ciDistMode = "auto";
+
+document.querySelectorAll("#ciLevelSeg button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#ciLevelSeg button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    ciLevel = b.dataset.level;
+    document.getElementById("ciUpperLabel").textContent = `Upper limit (${ciLevel}% CI)`;
+    document.getElementById("ciLowerLabel").textContent = `Lower limit (${ciLevel}% CI)`;
+    computeCI();
+  });
+});
+document.querySelectorAll("#ciDistSeg button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#ciDistSeg button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    ciDistMode = b.dataset.mode;
+    computeCI();
+  });
+});
+["ciUpper", "ciLower", "ciN"].forEach((id) => document.getElementById(id).addEventListener("input", computeCI));
+
+function computeCI() {
+  const U = val("ciUpper"), L = val("ciLower"), N = val("ciN");
+  const level = CI_LEVELS[ciLevel];
+  const seOut = document.getElementById("ciSEOut");
+  const sdOut = document.getElementById("ciSDOut");
+  const worked = document.getElementById("ciWorked");
+  const warnGrey = document.getElementById("ciWarnGrey");
+  const warnNoN = document.getElementById("ciWarnNoN");
+
+  if (Number.isNaN(U) || Number.isNaN(L)) {
+    seOut.textContent = "—"; sdOut.textContent = "—"; worked.classList.remove("show");
+    warnGrey.classList.remove("show"); warnNoN.classList.remove("show");
+    return;
+  }
+  const hasN = !Number.isNaN(N) && N > 0;
+
+  let useT;
+  if (ciDistMode === "t") useT = true;
+  else if (ciDistMode === "normal") useT = false;
+  else useT = hasN && N < 60;
+
+  let divisor, tValue = null, df = null;
+  if (useT && hasN) {
+    df = N - 1;
+    tValue = tInv(level.alpha, df);
+    divisor = 2 * tValue;
+  } else {
+    divisor = level.divisor;
+  }
+
+  const SE = (U - L) / divisor;
+  const SD = hasN ? Math.sqrt(N) * SE : null;
+
+  seOut.textContent = fmtN(SE, 4);
+  sdOut.textContent = hasN ? fmtN(SD, 4) : "—";
+
+  document.getElementById("ciWorkedTitle").textContent = useT ? `t-distribution, df = ${fmtN(df, 0)}` : "Normal approximation";
+  let line1 = useT
+    ? `t(${level.alpha}, df=${fmtN(df, 0)}) = ${fmtN(tValue, 4)} → divisor = 2 × ${fmtN(tValue, 4)} = ${fmtN(divisor, 4)}`
+    : `divisor = ${fmtN(divisor, 4)}`;
+  document.getElementById("ciWorkedLine1").textContent = line1;
+  document.getElementById("ciWorkedLine2").textContent = hasN
+    ? `SE = (${fmtN(U)} − ${fmtN(L)}) ÷ ${fmtN(divisor, 4)} = ${fmtN(SE, 4)}  →  SD = √${fmtN(N)} × ${fmtN(SE, 4)} = ${fmtN(SD, 4)}`
+    : `SE = (${fmtN(U)} − ${fmtN(L)}) ÷ ${fmtN(divisor, 4)} = ${fmtN(SE, 4)}`;
+  worked.classList.add("show");
+
+  warnGrey.classList.toggle("show", hasN && N >= 60 && N <= 100 && ciDistMode === "auto");
+  warnNoN.classList.toggle("show", !hasN);
+}
+
+// ===================== SE panel =====================
+let seMode = "seToSd";
+document.querySelectorAll("#seModeSeg button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#seModeSeg button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    seMode = b.dataset.mode;
+    document.getElementById("seInputWrap").style.display = seMode === "seToSd" ? "flex" : "none";
+    document.getElementById("sdInputWrap").style.display = seMode === "sdToSe" ? "flex" : "none";
+    document.getElementById("seOutLabel").textContent = seMode === "seToSd" ? "Imputed SD" : "Imputed SE";
+    computeSE();
+  });
+});
+["seInput", "sdInput", "seN"].forEach((id) => document.getElementById(id).addEventListener("input", computeSE));
+
+function computeSE() {
+  const N = val("seN");
+  const out = document.getElementById("seOut");
+  if (Number.isNaN(N) || N <= 0) { out.textContent = "—"; return; }
+  if (seMode === "seToSd") {
+    const SE = val("seInput");
+    out.textContent = Number.isNaN(SE) ? "—" : fmtN(SE * Math.sqrt(N), 4);
+  } else {
+    const SD = val("sdInput");
+    out.textContent = Number.isNaN(SD) ? "—" : fmtN(SD / Math.sqrt(N), 4);
+  }
+}
+
+// ===================== Corr panel =====================
+["corrSdB", "corrSdF", "corrSdC"].forEach((id) => document.getElementById(id).addEventListener("input", computeCorr));
+function computeCorr() {
+  const b = val("corrSdB"), f = val("corrSdF"), c = val("corrSdC");
+  const out = document.getElementById("corrOut");
+  const worked = document.getElementById("corrWorked");
+  const warn = document.getElementById("corrWarnRange");
+  if ([b, f, c].some((x) => Number.isNaN(x)) || b <= 0 || f <= 0) {
+    out.textContent = "—"; worked.classList.remove("show"); warn.classList.remove("show");
+    return;
+  }
+  const corr = (b * b + f * f - c * c) / (2 * b * f);
+  out.textContent = fmtN(corr, 4);
+  document.getElementById("corrWorkedLine").textContent =
+    `corr = (${fmtN(b)}² + ${fmtN(f)}² − ${fmtN(c)}²) ÷ (2 × ${fmtN(b)} × ${fmtN(f)}) = ${fmtN(corr, 4)}`;
+  worked.classList.add("show");
+  warn.classList.toggle("show", corr < -1 || corr > 1);
+}
+
+// ===================== SD change panel =====================
+["schSdB", "schSdF", "schCorr"].forEach((id) => document.getElementById(id).addEventListener("input", computeSch));
+function computeSch() {
+  const b = val("schSdB"), f = val("schSdF"), r = val("schCorr");
+  const out = document.getElementById("schOut");
+  const worked = document.getElementById("schWorked");
+  const warn = document.getElementById("schWarnNeg");
+  if ([b, f, r].some((x) => Number.isNaN(x)) || b < 0 || f < 0) {
+    out.textContent = "—"; worked.classList.remove("show"); warn.classList.remove("show");
+    return;
+  }
+  const inside = b * b + f * f - 2 * r * b * f;
+  const sdChange = inside < 0 ? NaN : Math.sqrt(inside);
+  out.textContent = Number.isNaN(sdChange) ? "n/a" : fmtN(sdChange, 4);
+  document.getElementById("schWorkedLine").textContent =
+    `SD_change = √(${fmtN(b)}² + ${fmtN(f)}² − 2×${fmtN(r)}×${fmtN(b)}×${fmtN(f)})`;
+  worked.classList.add("show");
+  warn.classList.toggle("show", Number.isNaN(sdChange));
+}
+
+// ===================== MD panel (t-stat / P-value / CI for mean difference) =====================
+let mdMode = "p";
+let mdCILevel = "95";
+
+document.querySelectorAll("#mdModeSeg button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#mdModeSeg button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    mdMode = b.dataset.mode;
+    document.getElementById("mdPWrap").style.display = mdMode === "p" ? "flex" : "none";
+    document.getElementById("mdTWrap").style.display = mdMode === "t" ? "flex" : "none";
+    document.getElementById("mdCIWrap").style.display = mdMode === "ci" ? "grid" : "none";
+    document.getElementById("mdCILevelSeg").style.display = mdMode === "ci" ? "inline-flex" : "none";
+    computeMD();
+  });
+});
+document.querySelectorAll("#mdCILevelSeg button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#mdCILevelSeg button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    mdCILevel = b.dataset.level;
+    computeMD();
+  });
+});
+["mdMD", "mdP", "mdT", "mdCIUpper", "mdCILower", "mdNE", "mdNC"].forEach((id) =>
+  document.getElementById(id).addEventListener("input", computeMD)
+);
+
+function computeMD() {
+  const MD = val("mdMD");
+  const NE = val("mdNE"), NC = val("mdNC");
+  const tOut = document.getElementById("mdTOut");
+  const seOut = document.getElementById("mdSEOut");
+  const sdOut = document.getElementById("mdSDOut");
+  const worked = document.getElementById("mdWorked");
+  const warnSmall = document.getElementById("mdWarnSmallSample");
+
+  const hasNs = !Number.isNaN(NE) && !Number.isNaN(NC) && NE > 0 && NC > 0;
+  const df = hasNs ? NE + NC - 2 : null;
+
+  let tStat = null, SE = null, line1 = "", line2 = "", line3 = "";
+
+  if (mdMode === "p") {
+    const P = val("mdP");
+    if (Number.isNaN(P) || P <= 0 || P >= 1 || !hasNs || Number.isNaN(MD)) {
+      tOut.textContent = "—"; seOut.textContent = "—"; sdOut.textContent = "—"; worked.classList.remove("show");
+      return;
+    }
+    tStat = tInv(1 - P / 2, df);
+    SE = Math.abs(MD) / tStat;
+    line1 = `t for P=${fmtN(P)}, df=${fmtN(df,0)} → t = ${fmtN(tStat, 4)}`;
+    line2 = `SE = |${fmtN(MD)}| ÷ ${fmtN(tStat, 4)} = ${fmtN(SE, 4)}`;
+  } else if (mdMode === "t") {
+    const T = val("mdT");
+    if (Number.isNaN(T) || T === 0 || Number.isNaN(MD)) {
+      tOut.textContent = "—"; seOut.textContent = "—"; sdOut.textContent = "—"; worked.classList.remove("show");
+      return;
+    }
+    tStat = Math.abs(T);
+    SE = Math.abs(MD) / tStat;
+    line1 = `t = ${fmtN(tStat, 4)} (entered directly)`;
+    line2 = `SE = |${fmtN(MD)}| ÷ ${fmtN(tStat, 4)} = ${fmtN(SE, 4)}`;
+  } else {
+    const U = val("mdCIUpper"), L = val("mdCILower");
+    if ([U, L].some((x) => Number.isNaN(x)) || !hasNs) {
+      tOut.textContent = "—"; seOut.textContent = "—"; sdOut.textContent = "—"; worked.classList.remove("show");
+      return;
+    }
+    const levels = { "95": { divisor: 3.92, alpha: 0.975 }, "90": { divisor: 3.29, alpha: 0.95 }, "99": { divisor: 5.15, alpha: 0.995 } };
+    const lev = levels[mdCILevel];
+    let divisor;
+    if (df < 60) {
+      tStat = tInv(lev.alpha, df);
+      divisor = 2 * tStat;
+      line1 = `df=${fmtN(df,0)} < 60 → t(${lev.alpha}, df=${fmtN(df,0)}) = ${fmtN(tStat,4)} → divisor = ${fmtN(divisor,4)}`;
+    } else {
+      divisor = lev.divisor;
+      line1 = `df=${fmtN(df,0)} ≥ 60 → using normal divisor ${fmtN(divisor,4)}`;
+    }
+    SE = (U - L) / divisor;
+    line2 = `SE = (${fmtN(U)} − ${fmtN(L)}) ÷ ${fmtN(divisor,4)} = ${fmtN(SE,4)}`;
+  }
+
+  const SD = hasNs ? SE * Math.sqrt((NE * NC) / (NE + NC)) : null;
+  line3 = hasNs
+    ? `SD = ${fmtN(SE,4)} × √(${fmtN(NE)}×${fmtN(NC)} ÷ (${fmtN(NE)}+${fmtN(NC)})) = ${fmtN(SD,4)}`
+    : "Enter NE and NC to compute SD.";
+
+  tOut.textContent = tStat !== null ? fmtN(tStat, 4) : "—";
+  seOut.textContent = SE !== null ? fmtN(SE, 4) : "—";
+  sdOut.textContent = SD !== null ? fmtN(SD, 4) : "—";
+
+  document.getElementById("mdWorkedLine1").textContent = line1;
+  document.getElementById("mdWorkedLine2").textContent = line2;
+  document.getElementById("mdWorkedLine3").textContent = line3;
+  worked.classList.add("show");
+
+  warnSmall.classList.toggle("show", mdMode === "ci" && hasNs && df < 60);
+}
+
+// ===================== One-sample panel (NOT in Cochrane Handbook) =====================
+let osMode = "p";
+
+document.querySelectorAll("#osModeSeg button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#osModeSeg button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    osMode = b.dataset.mode;
+    document.getElementById("osPWrap").style.display = osMode === "p" ? "flex" : "none";
+    document.getElementById("osTWrap").style.display = osMode === "t" ? "flex" : "none";
+    computeOS();
+  });
+});
+["osMean", "osP", "osT", "osN"].forEach((id) => document.getElementById(id).addEventListener("input", computeOS));
+
+function computeOS() {
+  const mean = val("osMean");
+  const N = val("osN");
+  const tOut = document.getElementById("osTOut");
+  const seOut = document.getElementById("osSEOut");
+  const sdOut = document.getElementById("osSDOut");
+  const worked = document.getElementById("osWorked");
+
+  const hasN = !Number.isNaN(N) && N > 0;
+  if (Number.isNaN(mean) || !hasN) {
+    tOut.textContent = "—"; seOut.textContent = "—"; sdOut.textContent = "—"; worked.classList.remove("show");
+    return;
+  }
+  const df = N - 1;
+
+  let tStat = null, line1 = "";
+  if (osMode === "p") {
+    const P = val("osP");
+    if (Number.isNaN(P) || P <= 0 || P >= 1) {
+      tOut.textContent = "—"; seOut.textContent = "—"; sdOut.textContent = "—"; worked.classList.remove("show");
+      return;
+    }
+    tStat = tInv(1 - P / 2, df);
+    line1 = `t for P=${fmtN(P)}, df=${fmtN(df,0)} → t = ${fmtN(tStat, 4)}`;
+  } else {
+    const T = val("osT");
+    if (Number.isNaN(T) || T === 0) {
+      tOut.textContent = "—"; seOut.textContent = "—"; sdOut.textContent = "—"; worked.classList.remove("show");
+      return;
+    }
+    tStat = Math.abs(T);
+    line1 = `t = ${fmtN(tStat, 4)} (entered directly)`;
+  }
+
+  const SE = Math.abs(mean) / tStat;
+  const SD = SE * Math.sqrt(N);
+
+  tOut.textContent = fmtN(tStat, 4);
+  seOut.textContent = fmtN(SE, 4);
+  sdOut.textContent = fmtN(SD, 4);
+
+  document.getElementById("osWorkedLine1").textContent = line1;
+  document.getElementById("osWorkedLine2").textContent =
+    `SE = |${fmtN(mean)}| ÷ ${fmtN(tStat,4)} = ${fmtN(SE,4)}  →  SD = ${fmtN(SE,4)} × √${fmtN(N)} = ${fmtN(SD,4)}`;
+  worked.classList.add("show");
+}
+
+// initial compute (pre-filled defaults)
+computeCI(); computeSE(); computeCorr(); computeSch(); computeMD(); computeOS();
+</script>
+</body>
+</html>
