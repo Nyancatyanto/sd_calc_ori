@@ -283,6 +283,42 @@
     font-size: 13.5px;
     padding: 30px 10px;
   }
+
+  /* ---------- multi-row inputs (mean SD of change panel) ---------- */
+  .multi-rows { margin-bottom: 14px; }
+  .multi-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    margin-bottom: 10px;
+  }
+  .multi-row .field label { font-size: 11.5px; }
+  .multi-row .remove-row {
+    border: 1px solid var(--line);
+    background: var(--page);
+    color: var(--warn-text);
+    border-radius: 7px;
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .multi-row .remove-row:hover { background: var(--warn-bg); border-color: var(--warn-border); }
+  .add-row-btn {
+    border: 1px dashed var(--teal);
+    background: var(--page);
+    color: var(--teal);
+    border-radius: 7px;
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 14px;
+  }
+  .add-row-btn:hover { background: #EAF1F3; }
 </style>
 </head>
 <body>
@@ -316,6 +352,10 @@
       <button class="picker-option" data-target="panel-sdchange">
         <span class="ot">Baseline + final SD, missing change SD</span>
         <span class="od">Impute SD of change using a correlation</span>
+      </button>
+      <button class="picker-option" data-target="panel-meansdchange">
+        <span class="ot">Several SD-of-change values to combine</span>
+        <span class="od">Average multiple imputed/reported SDs of change into one</span>
       </button>
       <button class="picker-option" data-target="panel-onesample">
         <span class="ot">A t-stat or P-value for ONE group</span>
@@ -431,6 +471,12 @@
       <div class="result-card hi"><div class="rl">Imputed correlation (corr)</div><div class="rv" id="corrOut">—</div></div>
     </div>
     <div class="warning" id="corrWarnRange">This value falls outside [−1, 1] — check the three SD inputs, since this usually means one was misread or the trio is inconsistent.</div>
+
+    <p class="panel-note" style="margin-top:14px;">
+      Got your corr? Use it on the next panel ("Baseline + final SD, missing change SD") to impute
+      a missing SD of change — or, if you end up with several imputed/reported SD-of-change values
+      across studies or arms, combine them on the "Several SD-of-change values to combine" panel.
+    </p>
   </div>
 
   <!-- PANEL: SD CHANGE -->
@@ -456,6 +502,52 @@
       <div class="result-card hi"><div class="rl">SD of change</div><div class="rv" id="schOut">—</div></div>
     </div>
     <div class="warning" id="schWarnNeg">The term under the square root is negative with these inputs — the correlation is too high for these two SDs. Try a lower |corr|.</div>
+
+    <p class="panel-note" style="margin-top:14px;">
+      Need to combine this result with SD-of-change values from other studies or arms? Use the
+      "Several SD-of-change values to combine" panel next.
+    </p>
+  </div>
+
+  <!-- PANEL: MEAN SD OF CHANGE (combine several SD-of-change values) -->
+  <div class="panel" id="panel-meansdchange">
+    <span class="non-cochrane-badge">Not in Cochrane Handbook — general statistics</span>
+    <div class="panel-title">Mean SD of change across studies/arms</div>
+    <div class="panel-formula" id="msdFormula">
+      Simple mean: SD<sub>mean</sub> = (Σ SD<sub>change,i</sub>) ÷ k<br>
+      Pooled (n‑weighted): SD<sub>pooled</sub> = √( Σ (n<sub>i</sub> − 1) × SD<sub>change,i</sub>² ÷ Σ (n<sub>i</sub> − 1) )
+    </div>
+    <p class="panel-note">
+      Use this once you have two or more SD-of-change values — whether imputed via correlation
+      above, reported directly by different studies, or computed per-arm — and want one
+      representative value to carry forward into your meta-analysis or sensitivity check.
+      The pooled (n‑weighted) option is generally preferred when group sizes differ, since it
+      gives more influence to larger, more precisely estimated groups. This combination step is
+      standard variance-pooling practice, not a formula from Cochrane §6.5 itself.
+    </p>
+
+    <div class="seg" id="msdModeSeg">
+      <button class="active" data-mode="simple">Simple mean</button>
+      <button data-mode="pooled">Pooled (n‑weighted)</button>
+    </div>
+
+    <div class="multi-rows" id="msdRows">
+      <!-- rows injected by JS -->
+    </div>
+    <button class="add-row-btn" id="msdAddRow" type="button">+ Add another SD of change</button>
+
+    <div class="worked" id="msdWorked">
+      <div class="worked-title" id="msdWorkedTitle">Substituted</div>
+      <div class="worked-line" id="msdWorkedLine1"></div>
+      <div class="worked-line" id="msdWorkedLine2"></div>
+    </div>
+
+    <div class="results">
+      <div class="result-card"><div class="rl" id="msdKLabel">Values combined (k)</div><div class="rv" id="msdKOut">—</div></div>
+      <div class="result-card hi"><div class="rl" id="msdOutLabel">Mean SD of change</div><div class="rv" id="msdOut">—</div></div>
+    </div>
+    <div class="warning" id="msdWarnNeedTwo">Enter at least two SD-of-change values to combine.</div>
+    <div class="warning" id="msdWarnNeedN">Pooled mode needs a valid n (≥ 2) for every row — enter n or switch to "Simple mean".</div>
   </div>
 
   <!-- PANEL: MD (t-stat / P-value / CI for difference in means) -->
@@ -788,6 +880,110 @@ function computeSch() {
   worked.classList.add("show");
   warn.classList.toggle("show", Number.isNaN(sdChange));
 }
+
+// ===================== Mean SD of change panel (combine several SD-of-change values) =====================
+let msdMode = "simple";
+let msdRowCount = 0;
+const msdRowsEl = document.getElementById("msdRows");
+
+function msdAddRow(prefillSd, prefillN) {
+  msdRowCount += 1;
+  const idx = msdRowCount;
+  const row = document.createElement("div");
+  row.className = "multi-row";
+  row.dataset.rowId = idx;
+  row.innerHTML = `
+    <div class="field">
+      <label>SD of change <span class="hint">study/arm ${idx}</span></label>
+      <input type="number" step="any" class="msd-sd-input" value="${prefillSd !== undefined ? prefillSd : ''}">
+    </div>
+    <div class="field">
+      <label>n <span class="hint">for pooled mode; optional otherwise</span></label>
+      <input type="number" step="any" class="msd-n-input" value="${prefillN !== undefined ? prefillN : ''}">
+    </div>
+    <button type="button" class="remove-row" title="Remove this row">×</button>
+  `;
+  msdRowsEl.appendChild(row);
+  row.querySelectorAll("input").forEach((inp) => inp.addEventListener("input", computeMsd));
+  row.querySelector(".remove-row").addEventListener("click", () => {
+    row.remove();
+    computeMsd();
+  });
+  computeMsd();
+}
+
+document.getElementById("msdAddRow").addEventListener("click", () => msdAddRow());
+
+document.querySelectorAll("#msdModeSeg button").forEach((b) => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#msdModeSeg button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    msdMode = b.dataset.mode;
+    document.getElementById("msdOutLabel").textContent = msdMode === "pooled" ? "Pooled SD of change" : "Mean SD of change";
+    computeMsd();
+  });
+});
+
+function computeMsd() {
+  const rows = Array.from(msdRowsEl.querySelectorAll(".multi-row"));
+  const out = document.getElementById("msdOut");
+  const kOut = document.getElementById("msdKOut");
+  const worked = document.getElementById("msdWorked");
+  const warnNeedTwo = document.getElementById("msdWarnNeedTwo");
+  const warnNeedN = document.getElementById("msdWarnNeedN");
+
+  const entries = rows.map((row) => {
+    const sd = parseFloat(row.querySelector(".msd-sd-input").value);
+    const n = parseFloat(row.querySelector(".msd-n-input").value);
+    return { sd, n };
+  }).filter((e) => !Number.isNaN(e.sd) && e.sd >= 0);
+
+  kOut.textContent = entries.length > 0 ? String(entries.length) : "—";
+
+  if (entries.length < 2) {
+    out.textContent = "—";
+    worked.classList.remove("show");
+    warnNeedTwo.classList.toggle("show", entries.length >= 0);
+    warnNeedN.classList.remove("show");
+    return;
+  }
+  warnNeedTwo.classList.remove("show");
+
+  if (msdMode === "simple") {
+    const sum = entries.reduce((acc, e) => acc + e.sd, 0);
+    const mean = sum / entries.length;
+    out.textContent = fmtN(mean, 4);
+    document.getElementById("msdWorkedTitle").textContent = "Simple mean";
+    document.getElementById("msdWorkedLine1").textContent =
+      `SD_mean = (${entries.map((e) => fmtN(e.sd)).join(" + ")}) ÷ ${entries.length}`;
+    document.getElementById("msdWorkedLine2").textContent = `= ${fmtN(mean, 4)}`;
+    worked.classList.add("show");
+    warnNeedN.classList.remove("show");
+  } else {
+    const allHaveN = entries.every((e) => !Number.isNaN(e.n) && e.n >= 2);
+    if (!allHaveN) {
+      out.textContent = "—";
+      worked.classList.remove("show");
+      warnNeedN.classList.add("show");
+      return;
+    }
+    warnNeedN.classList.remove("show");
+    const numerator = entries.reduce((acc, e) => acc + (e.n - 1) * e.sd * e.sd, 0);
+    const denominator = entries.reduce((acc, e) => acc + (e.n - 1), 0);
+    const pooled = Math.sqrt(numerator / denominator);
+    out.textContent = fmtN(pooled, 4);
+    document.getElementById("msdWorkedTitle").textContent = "Pooled (n‑weighted)";
+    document.getElementById("msdWorkedLine1").textContent =
+      `Σ(n−1)×SD² = ${entries.map((e) => `(${fmtN(e.n)}−1)×${fmtN(e.sd)}²`).join(" + ")} = ${fmtN(numerator, 4)}`;
+    document.getElementById("msdWorkedLine2").textContent =
+      `Σ(n−1) = ${fmtN(denominator, 4)}  →  SD_pooled = √(${fmtN(numerator, 4)} ÷ ${fmtN(denominator, 4)}) = ${fmtN(pooled, 4)}`;
+    worked.classList.add("show");
+  }
+}
+
+// seed with two empty rows by default so the panel is ready to use
+msdAddRow();
+msdAddRow();
 
 // ===================== MD panel (t-stat / P-value / CI for mean difference) =====================
 let mdMode = "p";
